@@ -1,0 +1,19 @@
+{
+  "name": "pivot-medical-centre",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Hospital management system: Node.js server, PostgreSQL database, staff sign-in with roles",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "reset-password": "node scripts/reset-password.js",
+    "migrate-from-sqlite": "node --disable-warning=ExperimentalWarning scripts/migrate-from-sqlite.js"
+  },
+  "engines": {
+    "node": ">=20.11"
+  },
+  "dependencies": {
+    "pg": "^8.13.0"
+  },
+  "license": "UNLICENSED"
+}
