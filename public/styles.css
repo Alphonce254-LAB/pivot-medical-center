@@ -167,3 +167,13 @@ td .acts { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
   .main { padding-block: 20px 40px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
   .head h1 { font-size: 24px; }
 }
+
+/* Show/hide password (eye) button */
+.pwwrap { position: relative; display: block; }
+.pwwrap .field { padding-right: 40px; }
+.eye { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); border: 0; background: none; cursor: pointer; font-size: 18px; line-height: 1; padding: 6px 8px; border-radius: 6px; }
+.eye:hover, .eye:focus-visible { background: var(--line); }
+/* Forgot password link and recovery panel */
+.linkbtn { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; font-size: 13px; cursor: pointer; text-align: left; text-decoration: underline; }
+.note.ok { color: var(--ok); font-size: 13px; min-height: 0; }
+.issued { font-family: "IBM Plex Mono", monospace; font-size: 16px; font-weight: 500; background: var(--bg); border: 1px dashed var(--line); border-radius: 6px; padding: 8px 12px; display: inline-block; user-select: all; }

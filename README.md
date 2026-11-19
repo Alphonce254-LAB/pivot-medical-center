@@ -37,7 +37,9 @@ The first start creates the tables and prints a **username and temporary passwor
 
 Stop the server with Ctrl+C. Next time, just run `npm start`.
 
-If you forget the administrator password: `npm run reset-password -- admin`
+**Forgotten password:** on the sign-in page, click **Forgot password?** and enter your username. The administrator sees the request under **Staff > Password recovery requests** and clicks **Issue new password**. A random temporary password is shown once to pass on, and you choose your own at sign-in. If the administrator is the one locked out: `npm run reset-password -- admin`
+
+Every password box has an eye button to show or hide what you type.
 
 ## Accounts and roles
 

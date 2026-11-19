@@ -23,7 +23,21 @@
     <label>Password<input class="field" id="l-pass" type="password" autocomplete="current-password"></label>
     <div class="err" id="loginerr"></div>
     <button class="btn primary" id="l-btn" type="submit">Sign in</button>
+    <button class="linkbtn" id="l-forgot" type="button">Forgot password?</button>
     <p class="note">Authorised staff only. Sign-ins and changes are recorded.</p>
+  </form>
+  <form class="loginbox" data-form="recover" id="recoverbox" novalidate hidden>
+    <div class="brand">
+      <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><rect width="34" height="34" rx="8" fill="currentColor"/><path d="M14 8h6v6h6v6h-6v6h-6v-6H8v-6h6z" fill="var(--surface)"/></svg>
+      <div><b>Pivot</b><span>Medical Centre</span></div>
+    </div>
+    <h1>Recover password</h1>
+    <p class="note">Enter your username. The administrator will be notified and will give you a new temporary password. You will choose your own password when you sign in with it.</p>
+    <label>Username<input class="field" id="r-user" autocomplete="username" autocapitalize="none" spellcheck="false"></label>
+    <div class="err" id="recerr"></div>
+    <p class="note ok" id="recok"></p>
+    <button class="btn primary" id="r-btn" type="submit">Request new password</button>
+    <button class="linkbtn" id="r-back" type="button">Back to sign in</button>
   </form>
 </div>
 

@@ -176,6 +176,23 @@ route("POST", "/api/login", open, async (ctx) => {
   return { user: publicUser(user) };
 });
 
+// "Forgot password": anyone can ask. The answer is the same whether or not the username exists,
+// so this cannot be used to find out who has an account. An administrator then issues a new temporary password.
+route("POST", "/api/recover", open, async (ctx) => {
+  const username = str(ctx.body.username, 0, 40, "your username").toLowerCase();
+  if (!username) throw bad("Enter your username.");
+  const key = "rec:" + ctx.ip;
+  const wait = lockWait(key);
+  if (wait > 0) throw new HttpError(429, "Too many requests. Try again in " + Math.ceil(wait / 1000) + " seconds.");
+  noteFail(key, 5);
+  const user = (await query("SELECT username FROM users WHERE username = $1", [username])).rows[0];
+  if (user) {
+    await query("INSERT INTO reset_requests(username,requested) VALUES ($1,$2) ON CONFLICT (username) DO UPDATE SET requested = EXCLUDED.requested", [username, Date.now()]);
+    await audit(ctx, "Password recovery requested", username);
+  }
+  return { message: "If that username exists, the administrator has been notified and will give you a new temporary password." };
+});
+
 route("POST", "/api/logout", signedIn, async (ctx) => {
   await query("DELETE FROM sessions WHERE id_hash = $1", [ctx.sid]);
   await audit(ctx, "Signed out");
@@ -199,7 +216,7 @@ route("POST", "/api/account/password", signedIn, async (ctx) => {
 
 route("GET", "/api/data", allow(), async (ctx) => {
   const role = ctx.user.role;
-  const out = { wards: WARDS, doctors: [], patients: [], appts: [], invoices: [], users: [], log: [] };
+  const out = { wards: WARDS, doctors: [], patients: [], appts: [], invoices: [], users: [], log: [], requests: [] };
   if (role === "accounts") {
     out.patients = (await query("SELECT id,name FROM patients ORDER BY id")).rows.map((r) => ({ id: "P-" + r.id, name: r.name }));
   } else {
@@ -220,6 +237,7 @@ route("GET", "/api/data", allow(), async (ctx) => {
     ]);
     out.users = users.rows.map((u) => ({ username: u.username, name: u.name, role: u.role, temp: !!u.temp, last: u.last_login }));
     out.log = log.rows.map((l) => ({ t: l.t, u: l.username, m: l.msg }));
+    out.requests = (await query("SELECT username,requested FROM reset_requests ORDER BY requested")).rows.map((r) => ({ u: r.username, t: r.requested }));
   }
   return out;
 });
@@ -382,6 +400,23 @@ route("POST", "/api/users/:username/password", allow("admin"), async (ctx) => {
   await query("DELETE FROM sessions WHERE username = $1 AND id_hash <> $2", [username, ctx.sid]);
   await audit(ctx, "Reset password for " + username);
   return { message: "Reset password for " + username };
+});
+// Answers a recovery request: makes a random temporary password, shown once to the administrator to pass on.
+route("POST", "/api/users/:username/recover", allow("admin"), async (ctx) => {
+  const username = String(ctx.params.username).toLowerCase();
+  if (!(await query("SELECT 1 FROM users WHERE username = $1", [username])).rows.length) throw new HttpError(404, "Account not found.");
+  const password = auth.randomPassword();
+  await query("UPDATE users SET pwhash = $1, temp = TRUE WHERE username = $2", [await auth.hashPassword(password), username]);
+  await query("DELETE FROM sessions WHERE username = $1 AND id_hash <> $2", [username, ctx.sid]);
+  await query("DELETE FROM reset_requests WHERE username = $1", [username]);
+  await audit(ctx, "Issued recovery password for " + username);
+  return { message: "New temporary password for " + username + " created", username, password };
+});
+route("POST", "/api/users/:username/dismiss", allow("admin"), async (ctx) => {
+  const username = String(ctx.params.username).toLowerCase();
+  await query("DELETE FROM reset_requests WHERE username = $1", [username]);
+  await audit(ctx, "Dismissed recovery request from " + username);
+  return { message: "Request dismissed" };
 });
 route("DELETE", "/api/users/:username", allow("admin"), async (ctx) => {
   const username = String(ctx.params.username).toLowerCase();
