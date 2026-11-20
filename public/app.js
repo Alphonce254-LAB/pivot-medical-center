@@ -18,14 +18,14 @@
   var PERM = {
     checkin: A_STAFF, cancel: A_STAFF, complete: ["admin", "doctor"], admit: A_STAFF, discharge: ["admin", "doctor"],
     duty: ["admin"], pay: ["admin", "accounts"],
-    resetpw: ["admin"], cancelreset: ["admin"], removeuser: ["admin"], keepuser: ["admin"], confirmremove: ["admin"]
+    resetpw: ["admin"], cancelreset: ["admin"], issuepw: ["admin"], dismissreq: ["admin"], clearissued: ["admin"], removeuser: ["admin"], keepuser: ["admin"], confirmremove: ["admin"]
   };
   var FORM_PERM = { patients: ["admin", "receptionist"], appointments: A_STAFF, billing: ["admin", "accounts"], staff: ["admin"] };
-  var emptyData = function () { return { wards: WARDS, doctors: [], patients: [], appts: [], invoices: [], users: [], log: [] }; };
+  var emptyData = function () { return { wards: WARDS, doctors: [], patients: [], appts: [], invoices: [], users: [], log: [], requests: [] }; };
   var S = emptyData();
   var me = null, idleT;
 
-  var ui = { view: "dashboard", form: false, q: "", pf: "All", ad: ymd(new Date()), af: "All", bf: "All" };
+  var ui = { view: "dashboard", issued: null, form: false, q: "", pf: "All", ad: ymd(new Date()), af: "All", bf: "All" };
   var $ = function (sel) { return document.querySelector(sel); };
   var doc = function (id) { return S.doctors.filter(function (d) { return d.id === id; })[0]; };
   var pat = function (id) { return S.patients.filter(function (p) { return p.id === id; })[0]; };
@@ -211,7 +211,7 @@
   }
   function endSession(msg) {
     me = null; clearTimeout(idleT);
-    S = emptyData(); ui.form = false; ui.reset = ""; ui.rm = "";
+    S = emptyData(); ui.form = false; ui.reset = ""; ui.rm = ""; ui.issued = null;
     $("#view").innerHTML = "";
     showLogin(msg);
   }
@@ -251,10 +251,28 @@
     $("#sidefoot").innerHTML = "<div><b>" + esc(me.name) + "</b><br>" + ROLES[me.role].label + '</div><a href="#account">Change password</a>' +
       '<button class="btn sm" data-act="logout" type="button">Sign out</button>';
   }
+  function showRecover(on) {
+    document.querySelector('[data-form="login"]').hidden = on;
+    $("#recoverbox").hidden = !on;
+    $("#recerr").textContent = ""; $("#recok").textContent = "";
+    try { (on ? $("#r-user") : $("#l-user")).focus(); } catch (e) {}
+  }
+  function doRecover() {
+    var out = $("#recerr"), name = $("#r-user").value.trim();
+    out.textContent = ""; $("#recok").textContent = "";
+    if (!name) { out.textContent = "Enter your username."; return; }
+    $("#r-btn").disabled = true;
+    api("POST", "/api/recover", { username: name }).then(function (d) {
+      $("#r-btn").disabled = false; $("#recok").textContent = d.message;
+    }).catch(function (e) { $("#r-btn").disabled = false; out.textContent = e.message; });
+  }
   function showLogin(msg) {
+    showRecover(false); $("#r-user").value = "";
     $("#app").hidden = true; $("#login").hidden = false;
     $("#loginmsg").textContent = msg || ""; $("#loginerr").textContent = "";
-    $("#l-pass").value = "";
+    $("#l-pass").value = ""; $("#l-pass").type = "password";
+    var eye = $("#l-pass").parentNode.querySelector(".eye");
+    if (eye) { eye.textContent = EYE_SHOW; eye.setAttribute("aria-label", "Show password"); }
     try { $("#l-user").focus(); } catch (e) {}
   }
   function doLogin() {
@@ -305,6 +323,12 @@
     var rp = ui.reset ? '<form class="panel" data-form="resetpw" novalidate><h2>Reset password for ' + esc(ui.reset) + '</h2><div class="form">' +
       '<label>New temporary password<input class="field" id="f-pass" type="password" autocomplete="new-password"></label>' +
       '<div class="row"><button class="btn primary" type="submit">Save password</button><button class="btn" data-act="cancelreset" type="button">Cancel</button></div><div class="full err" id="err"></div></div></form>' : "";
+    var issued = ui.issued ? '<div class="panel"><h2>New temporary password for ' + esc(ui.issued.username) + '</h2><p class="note">Give this to the staff member now. It is shown only once, and they must choose their own password when they sign in.</p><p><span class="issued">' + esc(ui.issued.password) + '</span></p><div class="row"><button class="btn" data-act="clearissued" type="button">Done</button></div></div>' : "";
+    var reqs = (S.requests || []).length ? '<div class="panel"><h2>Password recovery requests</h2><div class="tablewrap" style="border:0"><table style="min-width:420px"><thead><tr><th>Username</th><th>Requested</th><th>Actions</th></tr></thead><tbody>' +
+      S.requests.map(function (r) {
+        var uid = esc(r.u);
+        return '<tr><td class="id">' + uid + '</td><td class="id">' + new Date(r.t).toLocaleString("en-GB") + '</td><td><div class="acts"><button class="btn sm primary" data-act="issuepw" data-id="' + uid + '" type="button">Issue new password</button><button class="btn sm" data-act="dismissreq" data-id="' + uid + '" type="button">Dismiss</button></div></td></tr>';
+      }).join("") + "</tbody></table></div></div>" : "";
     var rows = S.users.map(function (u) {
       var self = u.username === me.username, uid = esc(u.username);
       var acts = '<button class="btn sm" data-act="resetpw" data-id="' + uid + '" type="button">Reset password</button>';
@@ -317,7 +341,7 @@
     var logRows = (S.log || []).slice(0, 40).map(function (l) {
       return '<tr><td class="id">' + new Date(l.t).toLocaleString("en-GB") + '</td><td class="id">' + esc(l.u) + "</td><td>" + esc(l.m) + "</td></tr>";
     }).join("") || '<tr><td colspan="3" class="empty">No activity yet.</td></tr>';
-    return head("Staff accounts", S.users.length + " accounts", '<button class="btn primary" data-act="toggleform" type="button">' + (ui.form ? "Close form" : "Add staff") + "</button>") + form + rp +
+    return head("Staff accounts", S.users.length + " accounts", '<button class="btn primary" data-act="toggleform" type="button">' + (ui.form ? "Close form" : "Add staff") + "</button>") + issued + reqs + form + rp +
       '<div class="tablewrap"><table><thead><tr><th>Staff member</th><th>Role</th><th>Password</th><th>Last sign-in</th><th>Actions</th></tr></thead><tbody>' + rows + "</tbody></table></div>" +
       '<div class="card" style="margin-top:16px"><h2>Activity log <small>latest 40 events</small></h2><div class="tablewrap" style="border:0"><table style="min-width:520px"><thead><tr><th>Time</th><th>User</th><th>Event</th></tr></thead><tbody>' + logRows + "</tbody></table></div></div>";
   }
@@ -352,7 +376,7 @@
     var v = location.hash.slice(1);
     if (allowedViews().indexOf(v) < 0) v = ROLES[me.role].views[0];
     if (me.temp) v = "account";
-    if (v !== ui.view) { ui.form = false; ui.reset = ""; ui.rm = ""; }
+    if (v !== ui.view) { ui.form = false; ui.reset = ""; ui.rm = ""; ui.issued = null; }
     ui.view = v;
     render();
   }
@@ -369,6 +393,11 @@
     else if (act === "logout") { logout("You have signed out."); }
     else if (act === "alldates") { ui.ad = ""; render(); }
     else if (act === "resetpw") { ui.reset = id; ui.rm = ""; ui.form = false; render(); }
+    else if (act === "issuepw") {
+      api("POST", "/api/users/" + enc + "/recover").then(function (d) { ui.issued = { username: d.username, password: d.password }; return refresh(); }).catch(handleErr);
+    }
+    else if (act === "dismissreq") { run(api("POST", "/api/users/" + enc + "/dismiss"), "Request dismissed"); }
+    else if (act === "clearissued") { ui.issued = null; render(); }
     else if (act === "cancelreset") { ui.reset = ""; render(); }
     else if (act === "removeuser") { ui.rm = id; render(); }
     else if (act === "keepuser") { ui.rm = ""; render(); }
@@ -398,6 +427,7 @@
     if (!f) return;
     e.preventDefault();
     if (f === "login") { doLogin(); return; }
+    if (f === "recover") { doRecover(); return; }
     if (!me) return;
     var err = function (m) { var el = $("#err"); if (el) el.textContent = m; };
     var val = function (id) { return $("#" + id).value.trim(); };
@@ -445,6 +475,35 @@
       });
     }
   });
+  /* ---------- Show/hide password (eye) ---------- */
+  var EYE_SHOW = "\uD83D\uDC41\uFE0F", EYE_HIDE = "\uD83D\uDE48";
+  function addEyes(root) {
+    root.querySelectorAll('input[type="password"]').forEach(function (inp) {
+      if (inp.parentNode.classList.contains("pwwrap")) return;
+      var wrap = document.createElement("span"); wrap.className = "pwwrap";
+      inp.parentNode.insertBefore(wrap, inp); wrap.appendChild(inp);
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "eye"; b.textContent = EYE_SHOW;
+      b.setAttribute("aria-label", "Show password"); b.setAttribute("aria-pressed", "false"); b.tabIndex = 0;
+      wrap.appendChild(b);
+    });
+  }
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest(".eye");
+    if (!b) return;
+    e.preventDefault();
+    var inp = b.parentNode.querySelector("input"), show = inp.type === "password";
+    inp.type = show ? "text" : "password";
+    b.textContent = show ? EYE_HIDE : EYE_SHOW;
+    b.setAttribute("aria-label", show ? "Hide password" : "Show password");
+    b.setAttribute("aria-pressed", show ? "true" : "false");
+    inp.focus();
+  });
+  /* Forms are redrawn often, so new password boxes are given an eye as they appear. */
+  addEyes(document);
+  new MutationObserver(function () { addEyes(document); }).observe(document.body, { childList: true, subtree: true });
+  $("#l-forgot").addEventListener("click", function () { showRecover(true); });
+  $("#r-back").addEventListener("click", function () { showRecover(false); });
   window.addEventListener("hashchange", function () { if (me) route(); });
   boot();
 })();
